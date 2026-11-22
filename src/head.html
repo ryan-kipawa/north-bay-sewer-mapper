@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>North Bay Sewer Mapper</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script>window.L||document.write('<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script>')</script>
+<style>
+:root{
+  --paper:#f7f5f0; --card:#ffffff; --ink:#1c2128; --ink2:#4a525c; --ink3:#7b838d; --line:#e2ddd3; --line2:#cfc8ba;
+  --storm:#1f63c6; --san:#9a4a1c; --cb:#0b8f9b; --of:#2b7a4b; --warn:#b97a00; --err:#c0392b; --accent:#1c2128;
+  --sans:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif; --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+  --panel:384px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--paper);color:var(--ink);font:14px/1.45 var(--sans)}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:var(--storm)}
+#app{display:flex;height:100vh;height:100dvh}
+#panel{width:var(--panel);flex:none;display:flex;flex-direction:column;background:var(--paper);border-right:1px solid var(--line2);min-height:0;z-index:1000}
+#mapwrap{position:relative;flex:1;min-width:0}
+#map{position:absolute;inset:0;background:#d9d6cf}
+header.top{display:flex;align-items:center;gap:10px;padding:12px 14px 8px}
+.brand{flex:1;min-width:0}
+.brand h1{font-size:15px;margin:0;font-weight:600;letter-spacing:.01em}
+.brand p{margin:0;color:var(--ink3);font-size:12px}
+.logo{width:30px;height:30px;flex:none}
+#sheetToggle{display:none}
+form#search{display:flex;gap:6px;padding:0 14px 8px}
+form#search input{flex:1;min-width:0}
+nav#tabs{display:flex;gap:2px;padding:0 10px;border-bottom:1px solid var(--line2);overflow-x:auto;scrollbar-width:none}
+nav#tabs button{border:0;background:none;padding:8px 6px 9px;color:var(--ink2);font-weight:500;font-size:12.5px;border-bottom:2px solid transparent;white-space:nowrap;cursor:pointer}
+nav#tabs button.on{color:var(--ink);border-bottom-color:var(--ink)}
+nav#tabs .badge{display:inline-block;min-width:16px;padding:0 4px;border-radius:8px;background:var(--err);color:#fff;font-size:10px;line-height:16px;text-align:center;margin-left:3px}
+.tabs-body{flex:1;overflow-y:auto;min-height:0;padding:12px 14px 40px}
+.tab{display:none}.tab.on{display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:12px}
+.card h3{margin:0 0 6px;font-size:13px;font-weight:600;letter-spacing:.01em}
+.card h4{margin:10px 0 4px;font-size:12px;font-weight:600;color:var(--ink2);text-transform:uppercase;letter-spacing:.04em}
+.muted{color:var(--ink3);font-size:12px}
+.small{font-size:12px}
+.mono{font-family:var(--mono);font-size:12px}
+.row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.row>label:not(.btn){flex:1;min-width:0}
+.row>.btn{flex-shrink:0}
+.grid2>.wide,.grid3>.wide{grid-column:1/-1}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px 8px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px 8px}
+label.f{display:flex;flex-direction:column;gap:2px;font-size:11.5px;color:var(--ink2)}
+label.f.wide{grid-column:1/-1}
+input[type=text],input[type=number],input[type=search],select,textarea{border:1px solid var(--line2);border-radius:6px;padding:5px 7px;background:#fff;min-width:0;width:100%}
+input[type=number]{font-family:var(--mono);font-size:12.5px}
+textarea{resize:vertical;min-height:52px}
+input[type=range]{width:100%}
+.btn{border:1px solid var(--line2);background:#fff;border-radius:7px;padding:5px 10px;cursor:pointer;font-size:13px;white-space:nowrap}
+.btn:hover{border-color:var(--ink3)}
+.btn.primary{background:var(--ink);border-color:var(--ink);color:#fff}
+.btn.danger{color:var(--err)}
+.btn.sm{padding:2px 7px;font-size:12px}
+.btn[disabled]{opacity:.45;cursor:default}
+.chip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line2);border-radius:999px;padding:1px 8px;font-size:11.5px;background:#fff;cursor:pointer;user-select:none}
+.chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.tag{display:inline-block;border-radius:4px;padding:0 5px;font-size:10.5px;font-weight:600;letter-spacing:.02em;vertical-align:1px}
+.t-storm{background:#e3ecfa;color:var(--storm)}.t-san{background:#f6e7dd;color:var(--san)}
+.t-season{background:#eef3e6;color:#3c6b1e}.t-con{background:#fff1d6;color:#8a5a00}.t-win{background:#e9eef4;color:#3d5874}
+.t-warn{background:#fff1d6;color:#8a5a00}.t-err{background:#fbe3e0;color:var(--err)}.t-info{background:#eceae4;color:var(--ink2)}
+.list{display:flex;flex-direction:column;gap:4px;max-height:340px;overflow:auto}
+.li{display:flex;gap:8px;align-items:flex-start;padding:6px 8px;border:1px solid var(--line);border-radius:7px;background:#fff;font-size:12.5px;cursor:pointer}
+.li:hover{border-color:var(--line2);background:#fdfcf9}
+.li .grow{flex:1;min-width:0}
+.li b{font-weight:600}
+hr.sep{border:0;border-top:1px solid var(--line);margin:10px 0}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:12px}
+.kv span:nth-child(odd){color:var(--ink3)}
+.kv span:nth-child(even){font-family:var(--mono)}
+details.more summary{cursor:pointer;color:var(--ink2);font-size:12.5px;margin:4px 0}
+.legend{display:flex;gap:10px;flex-wrap:wrap;font-size:11.5px;color:var(--ink2)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:-1px}
+.start ol{margin:4px 0 0;padding-left:18px}.start li{margin:2px 0}
+canvas.chart{width:100%;height:150px;display:block;background:#fff;border:1px solid var(--line);border-radius:6px}
+
+/* toolbar */
+#toolbar{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:900;display:flex;gap:2px;background:rgba(255,255,255,.96);border:1px solid var(--line2);border-radius:10px;padding:3px;box-shadow:0 2px 10px rgba(0,0,0,.12);max-width:calc(100% - 120px);overflow-x:auto;scrollbar-width:none}
+#toolbar button{border:0;background:none;border-radius:7px;padding:5px 8px;display:flex;flex-direction:column;align-items:center;gap:1px;font-size:10.5px;color:var(--ink2);cursor:pointer;min-width:50px}
+#toolbar button svg{width:20px;height:20px}
+#toolbar button.on{background:var(--ink);color:#fff}
+#toolbar .div{width:1px;background:var(--line2);margin:4px 3px}
+#otherMenu{position:absolute;z-index:950;background:#fff;border:1px solid var(--line2);border-radius:9px;box-shadow:0 4px 16px rgba(0,0,0,.15);padding:4px;display:none}
+#otherMenu button{display:block;width:100%;text-align:left;border:0;background:none;padding:6px 10px;border-radius:6px;cursor:pointer;font-size:13px}
+#otherMenu button:hover{background:var(--paper)}
+#hint{position:absolute;bottom:34px;left:50%;transform:translateX(-50%);z-index:900;background:rgba(28,33,40,.92);color:#fff;border-radius:9px;padding:7px 12px;font-size:12.5px;display:none;align-items:center;gap:10px;max-width:calc(100% - 24px)}
+#hint .btn{background:#fff;color:var(--ink);border:0}
+#coords{position:absolute;bottom:6px;left:8px;z-index:800;background:rgba(255,255,255,.88);border-radius:6px;padding:2px 7px;font:11px var(--mono);color:var(--ink2);pointer-events:none}
+#swipe{position:absolute;top:0;bottom:0;width:0;z-index:850;display:none}
+#swipe .bar{position:absolute;top:0;bottom:0;left:-1px;width:3px;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.35)}
+#swipe .handle{position:absolute;top:50%;left:-17px;width:34px;height:34px;margin-top:-17px;border-radius:50%;background:#fff;border:1px solid rgba(0,0,0,.35);cursor:ew-resize;display:flex;align-items:center;justify-content:center;font-size:13px;touch-action:none;box-shadow:0 1px 6px rgba(0,0,0,.25)}
+#swipe .lab{position:absolute;top:56px;font:600 11px var(--sans);background:rgba(28,33,40,.85);color:#fff;padding:2px 7px;border-radius:5px;white-space:nowrap}
+#swipe .lab.a{right:10px}#swipe .lab.b{left:10px}
+#blockedBanner{position:absolute;left:50%;top:84px;transform:translateX(-50%);z-index:960;max-width:min(560px,calc(100% - 24px));background:#7d1f15;color:#fff;border-radius:10px;padding:12px 14px;font-size:13.5px;box-shadow:0 6px 20px rgba(0,0,0,.25)}
+#toast{position:fixed;right:14px;bottom:14px;z-index:3000;display:flex;flex-direction:column;gap:6px;max-width:380px}
+#toast .t{background:var(--ink);color:#fff;border-radius:9px;padding:9px 12px;font-size:13px;box-shadow:0 4px 14px rgba(0,0,0,.2)}
+#toast .t.err{background:#7d1f15}
+#toast .t button{margin-left:8px;color:var(--ink)}
+#refCrop{position:absolute;right:10px;top:64px;z-index:900;background:#fff;border:1px solid var(--line2);border-radius:9px;padding:6px;display:none;box-shadow:0 2px 10px rgba(0,0,0,.15)}
+#refCrop canvas{display:block;width:180px;height:180px;border-radius:5px}
+#refCrop div{font-size:11.5px;color:var(--ink2);margin-top:4px;text-align:center}
+
+/* modal */
+#modal{position:fixed;inset:0;z-index:4000;background:rgba(20,22,26,.6);display:flex;align-items:center;justify-content:center}
+#modal[hidden]{display:none}
+#modal .box{background:var(--paper);border-radius:12px;width:min(1100px,96vw);height:min(820px,92vh);display:flex;flex-direction:column;overflow:hidden}
+#modal .bar{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line2);flex-wrap:wrap}
+#modal .bar .grow{flex:1;min-width:160px;font-size:13px}
+#dwgView{flex:1;overflow:auto;position:relative;background:#8d8a83;cursor:crosshair}
+#dwgView .inner{position:relative;transform-origin:0 0}
+#dwgView img{display:block;user-select:none;-webkit-user-drag:none}
+.gcp{position:absolute;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;border:2px solid #e8322b;background:rgba(232,50,43,.18);color:#e8322b;font:700 12px var(--sans);display:flex;align-items:center;justify-content:center;pointer-events:none}
+.gcp::after{content:'';position:absolute;left:50%;top:50%;width:3px;height:3px;margin:-1.5px;background:#e8322b;border-radius:50%}
+
+/* map symbols */
+.nb-node{background:none;border:0}
+.nb-node svg{overflow:visible;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.45))}
+.nb-arrow{background:none;border:0;pointer-events:none}
+.nb-gcp{background:none;border:0}
+.leaflet-container{font:12.5px var(--sans)}
+.leaflet-popup-content{margin:10px 12px;min-width:200px}
+.pop h4{margin:0 0 4px;font-size:13px}
+.pop .links{display:flex;flex-direction:column;gap:2px;margin-top:6px}
+.pop table{border-collapse:collapse;font:11px var(--mono);margin-top:4px}
+.pop td{padding:1px 6px 1px 0;vertical-align:top}
+.dwg-overlay{position:absolute;left:0;top:0;transform-origin:0 0;pointer-events:none;max-width:none!important}
+.analysis-img{image-rendering:pixelated}
+table.acc{width:100%;border-collapse:collapse;font-size:12.5px}
+table.acc th{font-weight:600;text-align:right;color:var(--ink2);padding:3px 4px;border-bottom:1px solid var(--line)}
+table.acc th:first-child{text-align:left}
+table.acc td{padding:4px;border-bottom:1px solid var(--line);text-align:right;font-family:var(--mono)}
+table.acc td:first-child{text-align:left;font-family:var(--sans)}
+td.good{color:#1e7a3c;font-weight:600}td.fair{color:#a36a00;font-weight:600}td.poor{color:var(--err);font-weight:600}
+.pbar{display:grid;grid-template-columns:70px 1fr 44px;gap:6px;align-items:center;font-size:12px;margin-top:4px}
+.pbar i{display:block;height:7px;border-radius:4px;background:#ccc}
+.pbar i.good{background:#2f9e44}.pbar i.fair{background:#e8a33a}.pbar i.poor{background:#e03131}
+.pbar b{font:500 11.5px var(--mono);text-align:right}
+.step .st{font-size:14px;width:16px;text-align:center}
+.step.run .st{color:#1f63c6}.step.ok .st{color:#2f9e44}.step.warn .st{color:#e8a33a}.step.err .st{color:var(--err)}.step.skip,.step.wait{opacity:.7}
+canvas.thumb{width:64px;height:64px;border-radius:5px;flex:none;background:#ddd}
+.leaflet-tooltip.nb-lab{background:rgba(255,255,255,.85);border:0;box-shadow:none;padding:0 4px;font:10.5px var(--mono);color:#1c2128;border-radius:3px}
+.leaflet-tooltip.nb-lab::before{display:none}
+
+@media (max-width:760px){
+  #app{display:block}
+  #mapwrap{position:absolute;inset:0}
+  #panel{position:absolute;left:0;right:0;bottom:0;width:auto;height:52vh;border-right:0;border-top:1px solid var(--line2);border-radius:14px 14px 0 0;box-shadow:0 -4px 18px rgba(0,0,0,.15);transition:height .2s}
+  #panel.peek{height:96px}
+  #panel.full{height:88vh}
+  #sheetToggle{display:block}
+  header.top{padding:8px 12px 4px}
+  .brand p{display:none}
+  form#search{display:none}
+  #panel.full form#search{display:flex}
+  #toolbar{left:8px;right:8px;transform:none;max-width:none;top:8px}
+  #toolbar button{min-width:44px;padding:4px 5px}
+  #hint{bottom:calc(52vh + 10px)}
+  #panel.peek ~ #mapwrap #hint{bottom:106px}
+  #coords{display:none}
+  #toast{left:10px;right:10px;bottom:auto;top:70px;max-width:none}
+  .leaflet-control-zoom{display:none}
+}
+</style>
+</head>
+<body>
+<div id="app">
+<aside id="panel">
+  <header class="top">
+    <svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14" fill="#1c2128"/><circle cx="16" cy="16" r="9" fill="none" stroke="#fff" stroke-width="1.6"/><path d="M9 16h14M16 9v14" stroke="#fff" stroke-width="1.2"/><circle cx="16" cy="16" r="2.2" fill="#e8a33a"/></svg>
+    <div class="brand"><h1>North Bay Sewer Mapper</h1><p>Find storm &amp; sanitary sewers, build a SWMM model</p></div>
+    <button id="sheetToggle" class="btn sm" title="Expand or collapse panel">▴</button>
+  </header>
+  <form id="search" autocomplete="off"><input id="q" type="search" placeholder="Street or address in North Bay"><button class="btn">Go</button></form>
+  <nav id="tabs">
+    <button data-tab="auto" class="on">Auto</button>
+    <button data-tab="imagery">Imagery</button>
+    <button data-tab="terrain">Terrain</button>
+    <button data-tab="clues">Clues</button>
+    <button data-tab="model">Model <span id="issueBadge"></span></button>
+    <button data-tab="export">SWMM</button>
+    <button data-tab="guide">Guide</button>
+  </nav>
+  <div class="tabs-body" id="tabsBody">
+
+  <!-- IMAGERY -->
+  <!-- AUTO -->
+  <section class="tab on" id="tab-auto">
+    <div class="card start" id="startCard">
+      <h3>Automatic draft model</h3>
+      <p class="small" style="margin:0">Zoom to a neighbourhood (up to 2.5 km across) and press <b>Infer sewer network</b>. The app pulls streets and buildings from OpenStreetMap and bare-earth lidar. It then routes gravity sewers to outfalls and the treatment plant, sizes pipes with City design flows, sets inverts, draws subcatchments, and stitches construction-season imagery. Every pipe gets a probability. Work down the review queue, then calibrate against City drawings.</p>
+      <div class="row" style="margin-top:6px"><button class="btn sm" id="dismissStart">Got it</button></div>
+    </div>
+    <div class="card">
+      <h3>1 · Study area</h3>
+      <div class="muted" id="areaInfo"></div>
+      <div class="row" style="margin-top:8px">
+        <label class="small"><input type="checkbox" id="useDem" checked> Lidar terrain</label>
+        <label class="small"><input type="checkbox" id="useImg" checked> Construction imagery scan</label>
+      </div>
+      <div class="row" style="margin-top:8px"><button class="btn primary" id="runAuto">Infer sewer network</button><button class="btn sm danger" id="clearInferred">Clear inferred</button></div>
+      <div class="list" id="steps" style="margin-top:8px;max-height:none"></div>
+    </div>
+    <div class="card">
+      <h3>2 · Expected accuracy</h3>
+      <div id="accuracy"></div>
+    </div>
+    <div class="card">
+      <h3>3 · Review queue</h3>
+      <div id="queue"></div>
+    </div>
+    <div class="card">
+      <h3>Exposed streets (stitched imagery)</h3>
+      <p class="muted" style="margin:0 0 6px">Each map tile shows the imagery version in which its streets were most dug up. Coloured pixels mark detected soil or granular surface on the road (purple = older, orange = recent). Click a street to compare that date with today.</p>
+      <div class="row"><span class="chip on" id="showMosaic">Show mosaic</span></div>
+      <div class="list" id="events" style="margin-top:8px"></div>
+    </div>
+  </section>
+
+  <section class="tab" id="tab-imagery">
+    <div class="card">
+      <h3>Base imagery (A)</h3>
+      <select id="srcA"></select>
+      <div class="muted" id="srcAinfo" style="margin-top:4px"></div>
+      <div class="row" style="margin-top:8px">
+        <span class="chip" data-ov="roads">Road names</span>
+        <span class="chip" data-ov="labels">Place labels</span>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Compare with (B)</h3>
+      <select id="srcB"><option value="">— none —</option></select>
+      <div class="row" style="margin-top:8px" id="cmpModes">
+        <span class="chip on" data-cmp="swipe">Swipe</span>
+        <span class="chip" data-cmp="opacity">Fade</span>
+        <span class="chip" data-cmp="blink">Blink</span>
+      </div>
+      <div id="fadeRow" style="display:none;margin-top:6px"><input type="range" id="fade" min="0" max="100" value="60"></div>
+      <div class="row" style="margin-top:8px"><button class="btn sm" id="swapAB">Swap A ⇄ B</button></div>
+    </div>
+    <div class="card">
+      <h3>Imagery dates at this spot</h3>
+      <p class="muted" style="margin:0 0 6px">Esri keeps every past version of its World Imagery (Wayback). This lists only versions where the imagery at the map centre actually changed, with the real capture date where Esri publishes it.</p>
+      <div class="row"><button class="btn primary" id="scanDates">Find dates here</button><span class="muted" id="scanStatus"></span></div>
+      <div class="list" id="dateList" style="margin-top:8px"></div>
+      <div class="legend" style="margin-top:8px">
+        <span><span class="tag t-season">spring</span> leaf-off, lids visible</span>
+        <span><span class="tag t-con">construction</span> May–Oct</span>
+        <span><span class="tag t-win">winter</span> melt rings</span>
+      </div>
+    </div>
+    <div class="card small">
+      <h3>Other imagery to check</h3>
+      <div id="extLinks" class="pop"><div class="links"></div></div>
+    </div>
+  </section>
+
+  <!-- TERRAIN -->
+  <section class="tab" id="tab-terrain">
+    <div class="card">
+      <h3>Hillshade overlays</h3>
+      <div class="row">
+        <span class="chip" data-hs="hs-ontario">Ontario lidar</span>
+        <span class="chip" data-hs="hs-nrcan">NRCan HRDEM</span>
+        <span class="chip" data-hs="hs-esri">Esri (coarse)</span>
+      </div>
+      <label class="f" style="margin-top:6px">Opacity<input type="range" id="hsOpacity" min="10" max="100" value="55"></label>
+    </div>
+    <div class="card">
+      <h3>Lidar analysis of the current view</h3>
+      <p class="muted" style="margin:0 0 6px">Downloads bare-earth elevations for the view (zoom to ~1–2 km across) and computes shaded relief, contours, flow paths and low spots. Low spots on roads are catch basin candidates.</p>
+      <div class="row">
+        <button class="btn primary" id="fetchDem">Analyse view (lidar)</button>
+        <label class="btn" style="position:relative;overflow:hidden">Load GeoTIFF…<input type="file" id="demFile" accept=".tif,.tiff" style="position:absolute;inset:0;opacity:0;cursor:pointer"></label>
+      </div>
+      <div class="muted" id="demStatus" style="margin-top:6px"></div>
+      <div id="demTools" style="display:none">
+        <hr class="sep">
+        <div class="row">
+          <span class="chip on" data-dl="relief">Relief</span>
+          <span class="chip" data-dl="flow">Flow paths</span>
+          <span class="chip" data-dl="sinks">Low spots</span>
+        </div>
+        <div class="grid2" style="margin-top:8px">
+          <label class="f">Contour interval<select id="contourCi"><option value="0">off</option><option value="0.25">0.25 m</option><option value="0.5" selected>0.5 m</option><option value="1">1 m</option><option value="2">2 m</option></select></label>
+          <label class="f">Vertical exaggeration<select id="zfac"><option>1</option><option selected>3</option><option>6</option></select></label>
+          <label class="f">Flow threshold <span id="flowThrV" class="mono"></span><input type="range" id="flowThr" min="0" max="100" value="45"></label>
+          <label class="f">Low spot min depth <span id="sinkDepV" class="mono"></span><input type="range" id="sinkDep" min="2" max="60" value="8"></label>
+        </div>
+        <label class="f" style="margin-top:6px">Overlay opacity<input type="range" id="demOpacity" min="10" max="100" value="75"></label>
+        <div class="row" style="margin-top:8px"><button class="btn" id="shedBtn">Catchment from a point…</button><button class="btn sm" id="clearDem">Clear</button></div>
+        <div id="shedCard"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Ground profile</h3>
+      <p class="muted" style="margin:0 0 6px">Draw a line along a street to see grades, sags and crests.</p>
+      <button class="btn" id="profileBtn">Draw profile…</button>
+      <div id="profileOut" style="margin-top:8px"></div>
+    </div>
+  </section>
+
+  <!-- CLUES -->
+  <section class="tab" id="tab-clues">
+    <div class="card">
+      <h3>City plan &amp; profile drawings</h3>
+      <p class="muted" style="margin:0 0 6px">North Bay publishes engineering plan &amp; profile drawings by street. They show maintenance hole positions, pipe sizes, materials and inverts — the best source for a SWMM model.</p>
+      <div class="pop"><div class="links">
+        <a href="https://northbay.ca/services-payments/building-development/plan-profile-drawings" target="_blank" rel="noopener">Drawing index by street (City of North Bay)</a>
+        <a href="https://northbay.ca/media/40vg24z0/complete-list-of-city-streets.pdf" target="_blank" rel="noopener">Complete list of streets and drawing numbers (PDF)</a>
+        <a href="https://northbay.ca/media/gefcezcp/trunk-lines.pdf" target="_blank" rel="noopener">Trunk sewer drawing list (PDF)</a>
+        <a href="https://northbay.ca/media/qebp5ujh/city-of-north-bay-engineering-design-guidelines-2021.pdf" target="_blank" rel="noopener">Engineering Design Guidelines 2021 (PDF)</a>
+      </div></div>
+      <h4>Open a drawing by number</h4>
+      <form class="row" id="dwgOpen"><input type="text" id="dwgNo" placeholder="e.g. A-93" style="flex:1"><button class="btn">Open PDF</button></form>
+      <h4>Overlay a drawing on the map</h4>
+      <p class="muted" style="margin:0 0 6px">Save the PDF (or a scan / photo of a drawing), load it here, then match 3 points such as manholes or curb corners.</p>
+      <label class="btn" style="position:relative;overflow:hidden;display:inline-block">Load drawing (PDF / image)…<input type="file" id="dwgFile" accept=".pdf,image/*" style="position:absolute;inset:0;opacity:0;cursor:pointer"></label>
+      <div id="dwgCtl" style="display:none;margin-top:8px">
+        <label class="f">Drawing opacity<input type="range" id="dwgOpacity" min="10" max="100" value="70"></label>
+        <div class="row" style="margin-top:6px"><span class="chip on" id="dwgShow">Visible</span><button class="btn sm" id="dwgRepick">Re-match points</button><button class="btn sm danger" id="dwgRemove">Remove</button></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>OpenStreetMap drainage features</h3>
+      <p class="muted" style="margin:0 0 6px">Manholes, storm drains, culverts, ditches, ponds and pumping stations mapped by volunteers. Coverage is patchy but free.</p>
+      <div class="row"><button class="btn" id="osmLoad">Load for current view</button><span class="chip on" id="osmShow">Visible</span></div>
+      <div class="muted" id="osmStatus" style="margin-top:6px"></div>
+    </div>
+    <div class="card">
+      <h3>Construction &amp; capital projects</h3>
+      <p class="muted" style="margin:0 0 6px">Streets dug up for sewer work. Imagery and street-level photos from those seasons can show open trenches, pipe stockpiles and manhole barrels. Future years tell you where new drawings and photos will appear.</p>
+      <div class="list" id="projList" style="max-height:none"></div>
+    </div>
+    <div class="card">
+      <h3>Street-level photos</h3>
+      <p class="muted" style="margin:0 0 6px">Click anywhere for links to Google Street View (use its date picker for older captures), Mapillary, Bing and Apple Maps. Lid lettering (STORM / SANITARY) is often readable.</p>
+      <button class="btn" id="streetBtn">Street-level mode</button>
+    </div>
+  </section>
+
+  <!-- MODEL -->
+  <section class="tab" id="tab-model">
+    <div id="editor"></div>
+    <div class="card">
+      <h3>Inventory</h3>
+      <div id="summary" class="small"></div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn sm" id="fillRims">Fill missing rims</button>
+        <button class="btn sm" id="undoBtn">Undo</button>
+        <button class="btn sm danger" id="clearAll">Clear model…</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Checks</h3>
+      <div class="row" id="issueFilter">
+        <span class="chip on" data-sev="error">Errors</span><span class="chip on" data-sev="warn">Warnings</span><span class="chip" data-sev="info">Info</span>
+      </div>
+      <div class="list" id="issues" style="margin-top:8px"></div>
+    </div>
+    <div class="card">
+      <h3>Features</h3>
+      <input type="search" id="featFilter" placeholder="Filter by ID, type, notes…">
+      <div class="list" id="featList" style="margin-top:8px"></div>
+    </div>
+  </section>
+
+  <!-- EXPORT -->
+  <section class="tab" id="tab-export">
+    <div class="card">
+      <h3>Design storm (storm model)</h3>
+      <p class="muted" style="margin:0 0 6px">Chicago hyetograph from the City of North Bay IDF constants (Design Guidelines Table 6.4).</p>
+      <div class="grid3">
+        <label class="f">Return period<select id="sRp"><option value="2">2-yr</option><option value="5">5-yr</option><option value="10">10-yr</option><option value="25">25-yr</option><option value="50">50-yr</option><option value="100">100-yr</option></select></label>
+        <label class="f">Duration<select id="sDur"><option value="60">1 h</option><option value="120">2 h</option><option value="180">3 h</option><option value="240">4 h</option><option value="360">6 h</option><option value="720">12 h</option><option value="1440">24 h</option></select></label>
+        <label class="f">Peak ratio r<input type="number" id="sR" step="0.01" min="0.1" max="0.9"></label>
+      </div>
+      <canvas class="chart" id="stormChart" style="margin-top:8px"></canvas>
+      <div class="muted" id="stormInfo" style="margin-top:4px"></div>
+    </div>
+    <div class="card">
+      <h3>Export</h3>
+      <div class="row">
+        <button class="btn primary" id="expStorm">Storm .inp</button>
+        <button class="btn primary" id="expSan">Sanitary .inp</button>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button class="btn" id="expGeo">Project (GeoJSON)</button>
+        <button class="btn" id="expCsv">Nodes (CSV)</button>
+        <label class="btn" style="position:relative;overflow:hidden">Import project…<input type="file" id="impGeo" accept=".geojson,.json" style="position:absolute;inset:0;opacity:0;cursor:pointer"></label>
+      </div>
+      <p class="muted" style="margin:8px 0 0">Coordinates are NAD83 / UTM 17N metres, ready for SWMM's map. Flow units L/s. Unknown inverts are estimated from minimum cover and slope and flagged in comments.</p>
+      <div id="expOut" style="margin-top:8px"></div>
+    </div>
+    <div class="card">
+      <h3>Uncertainty</h3>
+      <p class="muted" style="margin:0 0 6px">Sample the inferred model's uncertainty into many SWMM files: pipe sizes, inverts, imperviousness and widths vary, while checked pipes stay fixed. Run them all to see which results hold.</p>
+      <div class="row"><label class="small">Realisations <input type="number" id="ensN" value="20" min="2" max="200" style="width:70px"></label><button class="btn" id="ensStorm">Storm ensemble (.zip)</button><button class="btn" id="ensSan">Sanitary ensemble (.zip)</button></div>
+      <div class="row" style="margin-top:6px"><button class="btn" id="expUnc">Pipe uncertainty table (CSV)</button></div>
+    </div>
+    <div class="card">
+      <h3>Design criteria</h3>
+      <p class="muted" style="margin:0 0 6px">Defaults from the City's Engineering Design Guidelines (2021) where it gives a value; others are common SWMM starting values. Used for checks and estimates.</p>
+      <div class="grid2" id="settingsForm"></div>
+    </div>
+  </section>
+
+  <!-- GUIDE -->
+  <section class="tab" id="tab-guide"></section>
+  </div>
+</aside>
+<main id="mapwrap">
+  <div id="map"></div>
+  <div id="toolbar"></div>
+  <div id="otherMenu"></div>
+  <div id="swipe"><div class="bar"></div><div class="handle">⇆</div><div class="lab a" id="labA">A</div><div class="lab b" id="labB">B</div></div>
+  <div id="hint"></div>
+  <div id="refCrop"><canvas width="360" height="360"></canvas><div></div></div>
+  <div id="coords"></div>
+</main>
+</div>
+<div id="modal" hidden>
+  <div class="box">
+    <div class="bar">
+      <div class="grow" id="dwgMsg">Click 3 points you can also find on the map (manholes, curb corners, building corners).</div>
+      <label class="small" id="pageLab" style="display:none">Page <input type="number" id="dwgPage" min="1" value="1" style="width:60px"></label>
+      <button class="btn sm" id="dwgZoomOut">−</button><button class="btn sm" id="dwgZoomFit">Fit</button><button class="btn sm" id="dwgZoomIn">+</button>
+      <button class="btn sm" id="dwgUndoPt">Undo point</button>
+      <button class="btn primary" id="dwgNext" disabled>Next: match on map</button>
+      <button class="btn" id="dwgCancel">Cancel</button>
+    </div>
+    <div id="dwgView"><div class="inner"><img id="dwgImg" alt="Drawing"></div></div>
+  </div>
+</div>
+<div id="toast"></div>

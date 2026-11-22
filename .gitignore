@@ -1,0 +1,7 @@
+dist/
+test/*.png
+test/*.inp
+test/*.zip
+test/*.csv
+test/osm.json
+node_modules/
